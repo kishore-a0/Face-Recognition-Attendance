@@ -5,10 +5,10 @@ import bcrypt
 import mysql.connector
 from PyQt5.QtWidgets import (
     QWidget, QVBoxLayout, QLineEdit, QPushButton, QLabel, QMessageBox,
-    QComboBox, QDateEdit, QScrollArea
+    QComboBox, QDateEdit, QScrollArea, QHBoxLayout
 )
 from PyQt5.QtCore import Qt, QDate
-from PyQt5.QtGui import QFont
+from PyQt5.QtGui import QFont, QPixmap
 
 
 class StudentSignup(QWidget):
@@ -16,9 +16,9 @@ class StudentSignup(QWidget):
         super().__init__()
 
         # Window setup
-        self.setWindowTitle("Sign Up")
+        self.setWindowTitle("Student Sign-Up")
         self.setGeometry(100, 50, 500, 800)
-        self.setStyleSheet("background-color: #eef2f3;")
+        self.setStyleSheet("background-color: #f4f8fb;")
 
         # Scrollable layout
         scroll_area = QScrollArea(self)
@@ -26,11 +26,20 @@ class StudentSignup(QWidget):
         content_widget = QWidget()
         scroll_layout = QVBoxLayout(content_widget)
 
-        # Header
-        header = QLabel("Sign Up")
-        header.setFont(QFont("Arial", 28, QFont.Bold))
-        header.setStyleSheet("color: #4caf50; text-align: center;")
+        # Header Section
+        header = QLabel("Welcome to the Face Attendance System")
+        header.setFont(QFont("Arial", 20, QFont.Bold))
+        header.setStyleSheet("color: #4caf50; text-align: center; margin-top: 10px;")
         scroll_layout.addWidget(header, alignment=Qt.AlignCenter)
+
+        logo = QLabel(self)
+        logo_path = "logo.png"  # Ensure logo exists in this path
+        if os.path.exists(logo_path):
+            logo.setPixmap(QPixmap(logo_path).scaled(100, 100, Qt.KeepAspectRatio))
+        else:
+            logo.setText("Logo not found")  # If logo is not found, display message
+        logo.setAlignment(Qt.AlignCenter)
+        scroll_layout.addWidget(logo)
 
         # Input fields
         self.first_name_input = self.create_input_field("Enter your first name", scroll_layout)
@@ -40,24 +49,29 @@ class StudentSignup(QWidget):
         self.password_input = self.create_input_field("Enter your password", scroll_layout, is_password=True)
 
         # Dropdowns
-        self.class_input = self.create_dropdown(['MCA', 'BCA', 'MTech', 'BTech'], scroll_layout)
-        self.gender_input = self.create_dropdown(['Male', 'Female', 'Other'], scroll_layout)
+        self.class_input = self.create_dropdown(['MCA', 'BCA', 'MTech', 'BTech'], "Select your class", scroll_layout)
+        self.gender_input = self.create_dropdown(['Male', 'Female', 'Other'], "Select your gender", scroll_layout)
 
         # Date of Birth Field
+        dob_label = QLabel("Select Date of Birth")
+        dob_label.setFont(QFont("Arial", 12))
+        dob_label.setStyleSheet("margin-top: 10px; color: #333;")
+        scroll_layout.addWidget(dob_label)
+
         self.dob_input = QDateEdit()
         self.dob_input.setDate(QDate.currentDate())
         self.dob_input.setDisplayFormat("yyyy-MM-dd")
         self.dob_input.setStyleSheet(self.input_style())
         scroll_layout.addWidget(self.dob_input)
 
-        # Additional fields
+        # Parent Contact and Member Type
         self.parent_contact_input = self.create_input_field("Enter parent contact number", scroll_layout)
-        self.member_type_input = self.create_dropdown(['Student', 'Faculty', 'Admin'], scroll_layout)
+        self.member_type_input = self.create_dropdown(['Student', 'Faculty', 'Admin'], "Select your member type", scroll_layout)
 
         # Sign Up Button
         self.signup_button = QPushButton("Sign Up")
         self.signup_button.setStyleSheet(
-            "background-color: #4caf50; color: white; font-size: 16px; padding: 10px; border-radius: 8px;"
+            "background-color: #4caf50; color: white; font-size: 16px; padding: 10px; border-radius: 8px; margin-top: 20px;"
         )
         self.signup_button.clicked.connect(self.capture_and_register)
         scroll_layout.addWidget(self.signup_button, alignment=Qt.AlignCenter)
@@ -76,21 +90,23 @@ class StudentSignup(QWidget):
         layout.addWidget(field)
         return field
 
-    def create_dropdown(self, items, layout):
+    def create_dropdown(self, items, placeholder, layout):
+        label = QLabel(placeholder)
+        label.setFont(QFont("Arial", 12))
+        label.setStyleSheet("margin-top: 10px; color: #333;")
+        layout.addWidget(label)
+
         dropdown = QComboBox()
         dropdown.addItems(items)
-        dropdown.setStyleSheet(self.dropdown_style())
+        dropdown.setStyleSheet(self.input_style())
         layout.addWidget(dropdown)
         return dropdown
 
     def input_style(self):
         return (
-            "padding: 8px; font-size: 14px; border: 1px solid #ccc; border-radius: 5px;"
-            "margin-bottom: 10px;"
+            "padding: 10px; font-size: 14px; border: 1px solid #ccc; border-radius: 5px; "
+            "margin-bottom: 10px; background-color: white;"
         )
-
-    def dropdown_style(self):
-        return "padding: 8px; font-size: 14px; border: 1px solid #ccc; border-radius: 5px; margin-bottom: 10px;"
 
     def capture_and_register(self):
         reg_no = self.reg_no_input.text().strip()
@@ -98,8 +114,9 @@ class StudentSignup(QWidget):
             QMessageBox.warning(self, "Input Error", "Registration number is required.")
             return
 
-        face_path = f"faces/{reg_no}.jpg"
-        os.makedirs("faces", exist_ok=True)
+        face_dir = "D:/face/assets/faces"
+        os.makedirs(face_dir, exist_ok=True)
+        face_path = os.path.join(face_dir, f"{reg_no}.jpg")
 
         cap = cv2.VideoCapture(0)
         QMessageBox.information(self, "Capture", "Press 's' to capture your face or 'q' to quit.")
@@ -144,15 +161,28 @@ class StudentSignup(QWidget):
 
             for (path,) in face_paths:
                 if path and os.path.exists(path):
-                    known_image = face_recognition.load_image_file(path)
-                    new_image = face_recognition.load_image_file(new_face_path)
+                    known_image = cv2.imread(path)
 
-                    known_encoding = face_recognition.face_encodings(known_image)[0]
-                    new_encoding = face_recognition.face_encodings(new_image)[0]
+                    # Ensure the image is in RGB format
+                    if known_image is None or known_image.ndim != 8:
+                        continue
+                    known_image_rgb = cv2.cvtColor(known_image, cv2.COLOR_BGR2RGB)
 
-                    results = face_recognition.compare_faces([known_encoding], new_encoding)
-                    if results[0]:
-                        return True
+                    new_image = cv2.imread(new_face_path)
+                    if new_image is None or new_image.ndim != 8:
+                        QMessageBox.warning(self, "Image Error", "Captured face image is invalid. Please try again.")
+                        return False
+                    # Convert the new image to RGB as well
+                    new_image_rgb = cv2.cvtColor(new_image, cv2.COLOR_BGR2RGB)
+
+                    # Extract face encodings
+                    known_encodings = face_recognition.face_encodings(known_image_rgb)
+                    new_encodings = face_recognition.face_encodings(new_image_rgb)
+
+                    if known_encodings and new_encodings:
+                        results = face_recognition.compare_faces([known_encodings[0]], new_encodings[0])
+                        if results[0]:
+                            return True
             return False
         finally:
             cursor.close()
@@ -202,7 +232,15 @@ class StudentSignup(QWidget):
             conn.close()
 
     def redirect_to_login(self):
-        from student_login import login
+        QMessageBox.information(self, "Redirect", "Redirecting to login page...")
         self.close()
-        self.login_window = login()
-        self.login_window.show()
+
+
+if __name__ == "__main__":
+    import sys
+    from PyQt5.QtWidgets import QApplication
+
+    app = QApplication(sys.argv)
+    window = StudentSignup()
+    window.show()
+    sys.exit(app.exec_())

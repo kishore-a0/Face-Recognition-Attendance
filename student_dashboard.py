@@ -1,184 +1,173 @@
-from PyQt5.QtWidgets import QWidget, QVBoxLayout, QLabel, QPushButton, QFormLayout, QGroupBox, QTableWidget, QTableWidgetItem, QMessageBox
+from PyQt5.QtWidgets import (
+    QWidget, QVBoxLayout, QLabel, QPushButton, QTabWidget, QFormLayout,
+    QGroupBox, QTableWidget, QTableWidgetItem, QMessageBox, QHBoxLayout
+)
+from PyQt5.QtGui import QFont, QPixmap
 from PyQt5.QtCore import Qt
-from PyQt5.QtGui import QFont
 import mysql.connector
-from datetime import datetime
+
 
 class StudentDashboard(QWidget):
     def __init__(self, user):
         super().__init__()
 
-        self.user = user  # Store the user data
-
-        # Window setup
+        self.user = user  # Store user data
         self.setWindowTitle(f"Dashboard - {self.user['first_name']}")
-        self.setGeometry(100, 50, 800, 600)
-        self.setStyleSheet("background-color: #f0f0f0; font-family: Arial, sans-serif;")
+        self.setGeometry(100, 50, 900, 700)
+        self.setStyleSheet("""
+            background-color: #f0f4c3; 
+            font-family: Arial; 
+            font-size: 14px;
+        """)
+
+        # Tabbed layout
+        self.tabs = QTabWidget(self)
+        self.tabs.setStyleSheet("""
+            QTabWidget::pane {
+                border: 1px solid #80cbc4;
+                border-radius: 10px;
+                background-color: #ffffff;
+            }
+            QTabBar::tab {
+                background: #4caf50;
+                color: white;
+                padding: 10px 20px;
+                margin: 2px;
+                border-radius: 5px;
+            }
+            QTabBar::tab:selected {
+                background: #1b5e20;
+                color: white;
+            }
+        """)
+        self.tabs.addTab(self.create_profile_tab(), "Profile")
+        self.tabs.addTab(self.create_attendance_tab(), "Attendance")
+        self.tabs.addTab(self.create_settings_tab(), "Settings")
 
         # Main layout
-        layout = QVBoxLayout(self)
+        main_layout = QVBoxLayout(self)
+        main_layout.addWidget(self.tabs)
 
-        # Welcome header
-        header = QLabel(f"Welcome, {self.user['first_name']} {self.user['last_name']}")
-        header.setFont(QFont("Arial", 24, QFont.Bold))
-        header.setStyleSheet("color: #4caf50; text-align: center;")
-        layout.addWidget(header, alignment=Qt.AlignCenter)
+        self.setLayout(main_layout)
 
-        # Student Information
-        self.student_info_group = self.create_student_info_group()
-        layout.addWidget(self.student_info_group)
+    def create_profile_tab(self):
+        """Create the profile tab."""
+        profile_tab = QWidget()
+        layout = QVBoxLayout(profile_tab)
 
-        # Mark Attendance Button
-        self.mark_attendance_button = QPushButton("Mark Attendance")
-        self.mark_attendance_button.setStyleSheet(self.button_style())
-        self.mark_attendance_button.clicked.connect(self.mark_attendance)
-        layout.addWidget(self.mark_attendance_button, alignment=Qt.AlignCenter)
+        # Profile Card
+        profile_card = QGroupBox("Profile")
+        profile_card.setStyleSheet("""
+            background-color: #ffffff; 
+            border: 1px solid #81c784; 
+            border-radius: 10px; 
+            padding: 20px;
+        """)
+        card_layout = QHBoxLayout()
 
-        # Attendance Button
-        self.attendance_button = QPushButton("View Attendance")
-        self.attendance_button.setStyleSheet(self.button_style())
-        self.attendance_button.clicked.connect(self.view_attendance)
-        layout.addWidget(self.attendance_button, alignment=Qt.AlignCenter)
+        # Profile Picture
+        profile_pic = QLabel()
+        face_path = self.user.get('face_path', 'default_profile.png')
+        pixmap = QPixmap(face_path).scaled(150, 150, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+        profile_pic.setPixmap(pixmap)
+        profile_pic.setStyleSheet("""
+            border: 3px solid #43a047; 
+            border-radius: 75px;
+        """)
+        card_layout.addWidget(profile_pic)
 
-        # Logout Button
-        self.logout_button = QPushButton("Logout")
-        self.logout_button.setStyleSheet(self.button_style())
-        self.logout_button.clicked.connect(self.logout)
-        layout.addWidget(self.logout_button, alignment=Qt.AlignCenter)
+        # User Info
+        user_info_layout = QVBoxLayout()
+        user_info_labels = [
+            f"Name: {self.user['first_name']} {self.user['last_name']}",
+            f"Email: {self.user['email']}",
+            f"Class: {self.user['class']}",
+            f"Gender: {self.user['gender']}",
+            f"DOB: {self.user['dob']}"
+        ]
+        for text in user_info_labels:
+            label = QLabel(text)
+            label.setStyleSheet("color: #2e7d32; font-weight: bold;")
+            label.setFont(QFont("Arial", 12))
+            user_info_layout.addWidget(label)
 
-        # Set the layout
-        self.setLayout(layout)
+        card_layout.addLayout(user_info_layout)
+        profile_card.setLayout(card_layout)
+        layout.addWidget(profile_card)
+        return profile_tab
 
-    def button_style(self):
-        """Button hover effects and style"""
-        return (
-            "background-color: #4caf50; color: white; font-size: 16px; padding: 10px; border-radius: 8px; margin-top: 20px;"
-        )
+    def create_attendance_tab(self):
+        """Create the attendance tab."""
+        attendance_tab = QWidget()
+        layout = QVBoxLayout(attendance_tab)
 
-    def create_student_info_group(self):
-        """Create a group box with student info."""
-        group_box = QGroupBox("Student Information")
-        group_box.setStyleSheet("background-color: #ffffff; border-radius: 10px; padding: 20px;")
+        # Attendance Table
+        self.attendance_table = QTableWidget()
+        self.attendance_table.setColumnCount(3)
+        self.attendance_table.setHorizontalHeaderLabels(["Date", "Status", "Remarks"])
+        self.attendance_table.setStyleSheet("""
+            QTableWidget {
+                background-color: #ffffff;
+                border: 1px solid #66bb6a;
+            }
+            QHeaderView::section {
+                background-color: #2e7d32;
+                color: white;
+                font-weight: bold;
+                padding: 4px;
+            }
+        """)
+        layout.addWidget(self.attendance_table)
 
-        # Form layout for displaying student information
-        form_layout = QFormLayout()
+        # Load attendance data
+        self.load_attendance_data()
 
-        name_label = QLabel(f"Name: {self.user['first_name']} {self.user['last_name']}")
-        email_label = QLabel(f"Email: {self.user['email']}")
+        return attendance_tab
 
-        # Check if the 'course' key exists
-        course_label = QLabel(f"Course: {self.user.get('course', 'N/A')}")  # Fallback if 'course' key is missing
+    def create_settings_tab(self):
+        """Create the settings tab."""
+        settings_tab = QWidget()
+        layout = QVBoxLayout(settings_tab)
 
-        form_layout.addRow(name_label)
-        form_layout.addRow(email_label)
-        form_layout.addRow(course_label)
+        # Settings Info
+        settings_info = QLabel("Settings are under development.")
+        settings_info.setStyleSheet("color: #455a64; font-style: italic;")
+        settings_info.setFont(QFont("Arial", 14))
+        layout.addWidget(settings_info)
+        return settings_tab
 
-        group_box.setLayout(form_layout)
-        return group_box
+    def load_attendance_data(self):
+        """Load attendance data into the table."""
+        connection = self.connect_database()
+        if not connection:
+            return
+
+        try:
+            cursor = connection.cursor(dictionary=True)
+            query = "SELECT date, status, remarks FROM attendance WHERE reg_no = %s ORDER BY date DESC"
+            cursor.execute(query, (self.user['reg_no'],))
+            records = cursor.fetchall()
+
+            self.attendance_table.setRowCount(len(records))
+
+            for i, record in enumerate(records):
+                self.attendance_table.setItem(i, 0, QTableWidgetItem(record['date'].strftime('%Y-%m-%d')))
+                self.attendance_table.setItem(i, 1, QTableWidgetItem(record['status']))
+                self.attendance_table.setItem(i, 2, QTableWidgetItem(record['remarks'] or "No remarks"))
+        except mysql.connector.Error as e:
+            QMessageBox.critical(self, "Database Error", f"Could not fetch attendance data: {e}")
+        finally:
+            connection.close()
 
     def connect_database(self):
         """Connect to the MySQL database."""
         try:
-            connection = mysql.connector.connect(
-                host='localhost',
-                user='root',      # Change this to your MySQL username
-                password='',      # Change this to your MySQL password
-                database='attendance_system'  # Change this to your database name
+            return mysql.connector.connect(
+                host="localhost",
+                user="root",
+                password="",
+                database="attendance_system"
             )
-            return connection
         except mysql.connector.Error as err:
-            QMessageBox.critical(self, "Database Error", f"Error connecting to database: {err}")
+            QMessageBox.critical(self, "Database Error", f"Error: {err}")
             return None
-
-    def mark_attendance(self):
-        """Mark the attendance of the student as present or absent."""
-        connection = self.connect_database()
-        if not connection:
-            return  # Exit if the database connection fails
-
-        try:
-            cursor = connection.cursor()
-
-            # Get today's date
-            today_date = datetime.today().strftime('%Y-%m-%d')
-
-            # Check if attendance is already marked for today
-            query = "SELECT * FROM attendance WHERE student_id = %s AND date = %s"
-            cursor.execute(query, (self.user['id'], today_date))
-            existing_attendance = cursor.fetchone()
-
-            if existing_attendance:
-                QMessageBox.information(self, "Attendance", "Attendance already marked for today.")
-            else:
-                # If not marked, prompt the user for their status
-                reply = QMessageBox.question(self, "Mark Attendance", "Mark yourself as Present or Absent?", 
-                                             QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
-
-                # If "Yes" is clicked, mark as present; if "No" clicked, mark as absent
-                status = "Present" if reply == QMessageBox.Yes else "Absent"
-
-                # Insert the attendance record into the database
-                insert_query = "INSERT INTO attendance (student_id, date, status) VALUES (%s, %s, %s)"
-                cursor.execute(insert_query, (self.user['id'], today_date, status))
-                connection.commit()
-
-                QMessageBox.information(self, "Attendance", f"Marked as {status} for today.")
-
-        except mysql.connector.Error as e:
-            QMessageBox.critical(self, "Database Error", f"An error occurred while marking attendance: {e}")
-        finally:
-            connection.close()
-    
-    def view_attendance(self):
-        """Fetch and display attendance from the database."""
-        connection = self.connect_database()
-        if not connection:
-            return  # Exit if the database connection fails
-
-        try:
-            cursor = connection.cursor(dictionary=True)
-            query = "SELECT * FROM attendance WHERE student_id = %s"
-            cursor.execute(query, (self.user['id'],))
-            attendance_data = cursor.fetchall()
-
-            if attendance_data:
-                self.show_attendance(attendance_data)
-            else:
-                QMessageBox.information(self, "Attendance", "No attendance data found.")
-
-        except mysql.connector.Error as e:
-            QMessageBox.critical(self, "Database Error", f"An error occurred while fetching attendance data: {e}")
-        finally:
-            connection.close()
-
-    def show_attendance(self, attendance_data):
-        """Show the attendance data in a table."""
-        table_window = QWidget()
-        table_layout = QVBoxLayout()
-
-        table = QTableWidget()
-        table.setColumnCount(3)
-        table.setHorizontalHeaderLabels(["Date", "Status", "Remarks"])
-        table.setRowCount(len(attendance_data))
-
-        # Fill table with attendance data
-        for row, data in enumerate(attendance_data):
-            table.setItem(row, 0, QTableWidgetItem(data['date']))
-            table.setItem(row, 1, QTableWidgetItem(data['status']))
-            table.setItem(row, 2, QTableWidgetItem(data['remarks']))
-
-        table.setStyleSheet("QTableWidget {border: 1px solid #ccc; border-radius: 5px;}")
-        table.horizontalHeader().setStyleSheet("QHeaderView::section {background-color: #4caf50; color: white;}")
-
-        table_layout.addWidget(table)
-        table_window.setLayout(table_layout)
-        table_window.setWindowTitle("Attendance Records")
-        table_window.setGeometry(100, 50, 600, 400)
-        table_window.show()
-
-    def logout(self):
-        """Logout the user and return to the login window."""
-        self.close()  # Close the dashboard
-        from student_login import StudentLoginScreen  # Import the login screen here
-        self.login_window = StudentLoginScreen()  # Open the login window again
-        self.login_window.show()
