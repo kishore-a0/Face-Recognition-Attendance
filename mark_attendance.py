@@ -1,72 +1,44 @@
-import tkinter as tk
-from tkinter import messagebox
+import sys
+from PyQt5.QtWidgets import QApplication, QMainWindow, QWidget, QPushButton, QVBoxLayout, QListWidget, QMessageBox
 import mysql.connector
 import cv2
 import numpy as np
 import os
 
-
-class MarkAttendanceScreen:
+class MarkAttendanceScreen(QMainWindow):
     def __init__(self, staff_id):
+        super().__init__()
+
         self.staff_id = staff_id
-        self.root = tk.Toplevel()
-        self.root.title("Mark Attendance Screen")
-        self.root.geometry("400x300")
-        self.root.configure(bg="#e0f7fa")
+        self.setWindowTitle("Mark Attendance Screen")
+        self.setGeometry(100, 100, 500, 500)
+        self.setStyleSheet("background-color: #2c3e50;")  # Dark background color
 
-        self.student_listbox = tk.Listbox(self.root, height=10, width=50)
-        self.student_listbox.pack(pady=20)
+        # Main widget and layout
+        main_widget = QWidget(self)
+        self.setCentralWidget(main_widget)
 
-        self.load_student_list()
+        main_layout = QVBoxLayout(main_widget)
 
-        # Button to start face capture
-        tk.Button(
-            self.root,
-            text="Capture Face",
-            font=("Arial", 14),
-            bg="#8e24aa",
-            fg="white",
-            command=self.capture_face
-        ).pack(pady=20)
+        # Title label
+        self.title_label = QPushButton("Mark Attendance", self)
+        self.title_label.setStyleSheet("font-size: 20px; color: white; background-color: #2c3e50;")
+        self.title_label.setEnabled(False)
+        main_layout.addWidget(self.title_label)
 
-    def load_student_list(self):
-        """Fetch and display students in the listbox."""
-        try:
-            conn = mysql.connector.connect(
-                host="localhost",
-                user="root",
-                password="",
-                database="attendance_system"
-            )
-            cursor = conn.cursor()
-            cursor.execute("SELECT unique_id, name FROM students")
-            students = cursor.fetchall()
+        # Hide the Capture Face button, camera will open automatically
+        self.capture_button = QPushButton("Capture Face", self)
+        self.capture_button.setStyleSheet(
+            "font-size: 14px; color: white; background-color: #3498db; border-radius: 5px; padding: 10px;"
+        )
+        self.capture_button.setEnabled(False)  # Disable the button
+        main_layout.addWidget(self.capture_button)
 
-            for student in students:
-                unique_id, name = student
-                self.student_listbox.insert(tk.END, f"{name} (ID: {unique_id})")
-
-            cursor.close()
-            conn.close()
-
-        except mysql.connector.Error as err:
-            messagebox.showerror("Database Error", f"Error: {err}")
+        # Start capturing face directly when the window is loaded
+        self.capture_face()
 
     def capture_face(self):
-        """Capture and compare the student's face with the stored data."""
-        selected_student = self.student_listbox.get(tk.ACTIVE)
-        if not selected_student:
-            messagebox.showerror("Selection Error", "Please select a student!")
-            return
-
-        unique_id = selected_student.split(" ")[-1][1:-1]  # Extract unique ID
-        student_name = selected_student.split(" (")[0]  # Extract student name
-
-        # Check if the student's face is already stored
-        if not self.is_face_stored(unique_id):
-            messagebox.showerror("Face Not Found", f"No stored face found for {student_name}. Attendance cannot be marked.")
-            return
-
+        """Capture and compare the face with the stored data."""
         cap = cv2.VideoCapture(0)
         while True:
             ret, frame = cap.read()
@@ -82,12 +54,13 @@ class MarkAttendanceScreen:
                 face_region = gray[y:y + h, x:x + w]
                 face_resized = cv2.resize(face_region, (179, 179))
 
-                if self.match_face(unique_id, face_resized):
-                    messagebox.showinfo("Attendance", f"Student {student_name} recognized!")
-                    self.mark_attendance(unique_id)
+                # Compare the captured face with stored faces
+                if self.compare_face(face_resized):
+                    QMessageBox.information(self, "Attendance", "Face recognized and attendance marked!")
                     cap.release()
                     cv2.destroyAllWindows()
-                    self.root.destroy()  # Close the screen
+                    self.show_student_dashboard()  # Show the student dashboard
+                    self.close()  # Close the current window
                     return
 
             cv2.imshow("Capturing Face", frame)
@@ -97,8 +70,8 @@ class MarkAttendanceScreen:
         cap.release()
         cv2.destroyAllWindows()
 
-    def is_face_stored(self, unique_id):
-        """Check if a face is already stored for the student."""
+    def compare_face(self, captured_face):
+        """Compare the captured face with stored face data in the database."""
         try:
             conn = mysql.connector.connect(
                 host="localhost",
@@ -108,45 +81,32 @@ class MarkAttendanceScreen:
             )
             cursor = conn.cursor()
 
-            cursor.execute("SELECT face_path FROM students WHERE unique_id = %s", (unique_id,))
-            result = cursor.fetchone()
+            cursor.execute("SELECT unique_id, face_path FROM users")
+            users = cursor.fetchall()
 
-            if result and result[0]:  # Check if face_path exists and is not empty
-                return os.path.exists(result[0])  # Verify that the file exists on disk
-            return False
+            for user in users:
+                unique_id, stored_face_path = user
+                if stored_face_path and os.path.exists(stored_face_path):
+                    stored_face = cv2.imread(stored_face_path, cv2.IMREAD_GRAYSCALE)
+                    stored_face_resized = cv2.resize(stored_face, (179, 179))
 
-        except mysql.connector.Error as err:
-            messagebox.showerror("Database Error", f"Error: {err}")
-            return False
+                    # Compute the Euclidean distance between the captured and stored faces
+                    distance = np.linalg.norm(captured_face - stored_face_resized)
 
-    def match_face(self, unique_id, captured_face):
-        """Compare the captured face with the stored face data."""
-        try:
-            conn = mysql.connector.connect(
-                host="localhost",
-                user="root",
-                password="",
-                database="attendance_system"
-            )
-            cursor = conn.cursor()
+                    print(f"Distance for user {unique_id}: {distance}")  # Debugging line
 
-            cursor.execute("SELECT face_path FROM students WHERE unique_id = %s", (unique_id,))
-            result = cursor.fetchone()
-
-            if result and result[0]:
-                stored_face_path = result[0]
-                stored_face = cv2.imread(stored_face_path, cv2.IMREAD_GRAYSCALE)
-                stored_face_resized = cv2.resize(stored_face, (179, 179))
-
-                distance = np.linalg.norm(captured_face - stored_face_resized)
-                return distance < 100  # Smaller distance means a match
+                    # If distance is small, faces match
+                    if distance < 100:  # Adjust this value if necessary
+                        self.unique_id = unique_id
+                        self.mark_attendance(unique_id)
+                        return True
 
             cursor.close()
             conn.close()
             return False
 
         except mysql.connector.Error as err:
-            messagebox.showerror("Database Error", f"Error: {err}")
+            QMessageBox.critical(self, "Database Error", f"Error: {err}")
             return False
 
     def mark_attendance(self, unique_id):
@@ -167,17 +127,28 @@ class MarkAttendanceScreen:
             cursor.close()
             conn.close()
 
-            messagebox.showinfo("Attendance", "Attendance marked successfully!")
+            QMessageBox.information(self, "Attendance", "Attendance marked successfully!")
 
         except mysql.connector.Error as err:
-            messagebox.showerror("Database Error", f"Error: {err}")
+            QMessageBox.critical(self, "Database Error", f"Error: {err}")
+
+    def show_student_dashboard(self):
+        """Show the student dashboard after attendance is marked."""
+        dashboard_window = QWidget(self)
+        dashboard_window.setWindowTitle("Student Dashboard")
+        dashboard_window.setGeometry(100, 100, 500, 500)
+
+        dashboard_layout = QVBoxLayout(dashboard_window)
+
+        # For demonstration purposes, you can add widgets here
+        dashboard_layout.addWidget(QPushButton("Dashboard - Student Information"))
+
+        dashboard_window.setLayout(dashboard_layout)
+        dashboard_window.show()
 
 
 if __name__ == "__main__":
-    def test_screen():
-        root = tk.Tk()
-        root.withdraw()  # Hide the root window
-        MarkAttendanceScreen(staff_id=1)
-        root.mainloop()
-
-    test_screen()
+    app = QApplication(sys.argv)
+    window = MarkAttendanceScreen(staff_id=1)
+    window.show()
+    sys.exit(app.exec_())

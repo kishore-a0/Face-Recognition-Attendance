@@ -3,8 +3,11 @@ from PyQt5.QtWidgets import (
 )
 from PyQt5.QtCore import Qt
 from PyQt5.QtGui import QFont
+import sys
+from mark_attendance import MarkAttendanceScreen  # Import the MarkAttendanceScreen class
 
-# HoverButton Class
+
+# HoverButton Class (Unchanged)
 class HoverButton(QPushButton):
     """Custom QPushButton with hover effects."""
     def __init__(self, text, default_color, hover_color, *args, **kwargs):
@@ -121,6 +124,9 @@ class FaceRecognitionApp(QMainWindow):
         subheader.setAlignment(Qt.AlignCenter)
         layout.addWidget(subheader)
 
+        # Button to open Mark Attendance screen
+        layout.addWidget(self.create_button("Mark Attendance", "#4caf50", "#66bb6a", self.mark_attendance), alignment=Qt.AlignCenter)
+
         layout.addWidget(self.create_button("Student Login", "#4caf50", "#66bb6a", self.open_student_login), alignment=Qt.AlignCenter)
         layout.addWidget(self.create_button("Student Signup", "#4caf50", "#66bb6a", self.open_student_signup), alignment=Qt.AlignCenter)
         layout.addWidget(self.create_button("Back to Home", "#f44336", "#e57373", lambda: self.show_page(self.home_page)), alignment=Qt.AlignCenter)
@@ -187,17 +193,13 @@ class FaceRecognitionApp(QMainWindow):
     def open_screen(self, screen_name, error_message):
         """General method to open screens."""
         try:
-            print(f"Attempting to import module: {screen_name}")  # Debugging statement
-
             # Dynamically import the module for the student or admin screens
-            module = __import__(screen_name)  # This assumes student_signup.py or admin_signup.py is in the same folder
-            
+            module = __import__(screen_name)
+
             screen_class_name = f"{screen_name.capitalize()}Screen"  # Generate class name dynamically
-            print(f"Looking for class: {screen_class_name}")  # Debugging statement
 
             # Make sure the class exists within the module
             screen_class = getattr(module, screen_class_name)
-            print(f"Found class: {screen_class_name}")  # Debugging statement
 
             # Create and add the screen to the stacked widget
             screen = screen_class()
@@ -205,17 +207,23 @@ class FaceRecognitionApp(QMainWindow):
             self.stacked_widget.setCurrentWidget(screen)
             
         except ImportError as e:
-            # If module cannot be found, show an error
-            print(f"ImportError: {e}")
             QMessageBox.critical(self, "Error", f"{error_message}\nError: {e}")
         except AttributeError:
-            # Handle case where the class is not found in the module
-            print(f"AttributeError: Class {screen_class_name} not found in {screen_name}.py")
             QMessageBox.critical(self, "Error", f"{error_message}\nClass not found in the module.")
+
+    def mark_attendance(self):
+        """Handles the Mark Attendance action by opening the MarkAttendanceScreen."""
+        # Create an instance of the MarkAttendanceScreen
+        self.attendance_screen = MarkAttendanceScreen(staff_id=1)  # Pass the necessary staff_id or any other data
+        
+        # Add the MarkAttendanceScreen to the stacked widget
+        self.stacked_widget.addWidget(self.attendance_screen)
+        
+        # Switch to the MarkAttendanceScreen
+        self.stacked_widget.setCurrentWidget(self.attendance_screen)
 
 
 if __name__ == "__main__":
-    import sys
     app = QApplication(sys.argv)
     window = FaceRecognitionApp()
     window.show()
