@@ -27,7 +27,7 @@ class StudentSignup(QWidget):
         scroll_layout = QVBoxLayout(content_widget)
 
         # Header Section
-        header = QLabel("Welcome to the Face Attendance System")
+        header = QLabel("Add Memeber")
         header.setFont(QFont("Arial", 20, QFont.Bold))
         header.setStyleSheet("color: #4caf50; text-align: center; margin-top: 10px;")
         scroll_layout.addWidget(header, alignment=Qt.AlignCenter)

@@ -51,7 +51,7 @@ class AdminDashboard(QMainWindow):
         # Buttons
         buttons_layout = QVBoxLayout()
         buttons = [
-            ("Add Student", "#1e88e5", self.open_student_signup),
+            ("Add Memeber", "#1e88e5", self.open_student_signup),
             ("View Attendance Requests", "#8e24aa", self.view_attendance_requests),
             ("Logout", "#d32f2f", self.logout),
         ]
