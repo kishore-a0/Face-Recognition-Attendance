@@ -1,1 +1,3 @@
-# Face_Recogination_Attendance_System
+git add README.md
+git commit -m "Update project description in README"
+git push origin main
